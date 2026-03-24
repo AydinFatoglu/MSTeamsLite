@@ -25,7 +25,7 @@ def get_resource_path(filename):
 
 def get_icon():
     try:
-        path = get_resource_path("microsoft_office_teams_logo_icon_145726(2).ico")
+        path = get_resource_path("teams.ico")
         if os.path.exists(path):
             return wx.Icon(path, wx.BITMAP_TYPE_ICO)
     except Exception:
@@ -44,6 +44,7 @@ def set_webview2_permissions():
         exceptions["media_stream_mic"]    = IZIN_ENTRY
         exceptions["sound"]               = IZIN_ENTRY
         exceptions["speaker_selection"]   = IZIN_ENTRY
+        exceptions["notifications"]       = IZIN_ENTRY
         with open(PREFERENCES, "w", encoding="utf-8") as f:
             json.dump(data, f, separators=(",", ":"))
     except Exception:
@@ -54,6 +55,8 @@ class BrowserFrame(wx.Frame):
     def __init__(self, *args, **kwargs):
         style = wx.DEFAULT_FRAME_STYLE | wx.CLIP_CHILDREN
         super().__init__(*args, style=style, **kwargs)
+
+        self._force_close = False
 
         icon = get_icon()
         if icon != wx.NullIcon:
@@ -106,6 +109,7 @@ class BrowserFrame(wx.Frame):
         self.Raise()
 
     def _exit(self):
+        self._force_close = True
         set_webview2_permissions()
         self.tray.RemoveIcon()
         self.tray.Destroy()
@@ -118,7 +122,29 @@ class BrowserFrame(wx.Frame):
         set_webview2_permissions()
 
     def OnClose(self, _event):
-        self.Iconize(True)
+        if self._force_close:
+            return
+
+        # Önce pencereyi restore et — dialog ortalaması için
+        self.Iconize(False)
+        self.Raise()
+
+        dlg = wx.MessageDialog(
+            self,
+            "Ne yapmak istiyorsunuz?",
+            "Teams Launcher",
+            wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION
+        )
+        dlg.SetYesNoLabels("Arka Planda Çalış", "Tamamen Kapat")
+        dlg.Centre()
+
+        result = dlg.ShowModal()
+        dlg.Destroy()
+
+        if result == wx.ID_YES:
+            self.Iconize(True)
+        elif result == wx.ID_NO:
+            self._exit()
 
 
 class App(wx.App):
